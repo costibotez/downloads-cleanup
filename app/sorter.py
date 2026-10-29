@@ -167,7 +167,7 @@ def norm(s):
 
 
 def file_key(path, st):
-    return hashlib.sha1(f"{path}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:20]
+    return hashlib.sha1(f"v2|{path}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:20]
 
 
 def ext_of(name):
@@ -321,6 +321,41 @@ def file_date(a, st):
     return datetime.fromtimestamp(getattr(st, "st_birthtime", st.st_mtime)).strftime("%Y-%m-%d")
 
 
+def document_date(a):
+    """Prefer labelled issue dates over unrelated dates (e.g. payment deadlines)."""
+    text = norm(a.get("text") or "")
+    pattern = r"(?:invoice date|issue date|date of issue|data emiterii|data facturii|data emitere|date|data)\s*[:\-]?\s*(\d{4}[-/.]\d{2}[-/.]\d{2}|\d{2}[-/.]\d{2}[-/.]\d{4})"
+    for match in re.finditer(pattern, text):
+        raw = re.sub(r"[/.]", "-", match[1])
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d" if len(raw.split("-")[0]) == 4 else "%d-%m-%Y").strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
+
+
+def document_name(a, st):
+    category, _ = pdf_category("", a)
+    kind = {
+        "Documents/Invoices & receipts": "Invoice" if re.search(r"\b(invoice|factura|proforma)\b", norm(a.get("text") or "")) else "Receipt",
+        "Documents/Bank statements": "Bank statement",
+        "Documents/Contracts & legal": "Contract",
+        "Documents/Tax & accounting": "Tax document",
+        "Documents/Travel & tickets": "Travel document",
+        "Documents/CVs": "CV",
+    }.get(category)
+    if not kind:
+        return None
+    # Only use explicit issuer fields, never guess a company from arbitrary text.
+    issuer = re.search(r"(?:^|\n)\s*(?:supplier|issuer|vendor|furnizor|emitent)\s*:\s*([^\n]{2,80})", a.get("text") or "", re.I)
+    company = ""
+    if issuer:
+        company = re.split(r"\s+(?:VAT|CUI|CIF|Invoice|Factura|Date|Data|Address|Adresa)\b", issuer[1], flags=re.I)[0]
+        company = re.sub(r'[\x00-\x1f/:\\"<>|?*]', " ", company).strip()[:50]
+    date = document_date(a) or file_date(a, st)
+    return " – ".join(part for part in (kind, company, date) if part)
+
+
 def content_name(category, a, st):
     """A short human name for a media file based on what Vision saw, or None."""
     labels = [l for l, c in (a.get("labels") or []) if c >= 0.3 and l not in GENERIC_LABELS]
@@ -362,7 +397,7 @@ def build_plan(entries, analysis, rules, options, duplicates):
         stem = name[: -(len(ext) + 1)] if ext and name.lower().endswith("." + ext) else name
         new_name = name
         if options.get("rename", True) and not e["is_dir"] and category != "Duplicates" and is_meaningless(stem):
-            base = content_name(category, a, st)
+            base = document_name(a, st) if ext == "pdf" else content_name(category, a, st)
             if base:
                 new_name = f"{base}.{name.rsplit('.', 1)[-1]}" if "." in name else base
         plan.append({
@@ -374,6 +409,7 @@ def build_plan(entries, analysis, rules, options, duplicates):
             "size": st.st_size if not e["is_dir"] else 0,
             "kind": a.get("kind") or ("app" if e["is_dir"] else "other"),
             "category": category,
+            "dateFolder": (document_date(a) or file_date(a, st))[:7].replace("-", "/") if options.get("dateFolders") and category not in ("Duplicates", "Empty files") else "",
             "reason": reason,
             "thumb": a.get("thumb"),
             "include": True,

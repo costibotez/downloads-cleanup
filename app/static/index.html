@@ -29,8 +29,17 @@
         <button class="soft hidden" id="rescanBtn">Scan again</button>
         <button class="soft hidden" id="undoBtn">Undo last sort</button>
       </div>
+      <fieldset class="size-filter hidden" id="sizeFilter">
+        <legend>Filter by file size</legend>
+        <label>Minimum <input id="sizeMin" type="number" min="0" step="any" placeholder="No minimum"></label>
+        <label>Maximum <input id="sizeMax" type="number" min="0" step="any" placeholder="No maximum"></label>
+        <label>Units <select id="sizeUnit"><option>MB</option><option>GB</option></select></label>
+        <button class="soft" id="sizeClear" type="button">Clear</button>
+        <p class="hint" id="sizeSummary" aria-live="polite"></p>
+      </fieldset>
       <div class="progress hidden" id="progress"><div class="bar"><i id="bar"></i></div><span id="progressText"></span></div>
       <p class="hint" id="hint"></p>
+      <p class="hint" id="watchStatus" aria-live="polite"></p>
     </section>
 
     <section class="window">
@@ -53,7 +62,7 @@
       <div><p class="eyebrow" id="drawerGroup"></p><h2 id="drawerTitle"></h2></div>
       <button class="ghost" id="drawerClose">Close</button>
     </div>
-    <p class="hint">Untick a file to leave it where it is, or pick another folder for it.</p>
+    <p class="hint">Untick a file to leave it where it is, or pick another folder for it. Duplicates and empty files also have a Move to Trash button; recover them from macOS Trash using Put Back.</p>
     <ul class="files" id="drawerList"></ul>
   </aside>
 
@@ -63,8 +72,11 @@
       <button class="ghost" id="settingsClose">Close</button>
     </div>
     <label class="toggle"><input type="checkbox" id="optRename"><span><b>Rename by content</b><small>IMG_4821.jpg becomes "Selfie, coffee 2026-05-08.jpg". Only files with meaningless names are renamed.</small></span></label>
-    <label class="toggle"><input type="checkbox" id="optDupes"><span><b>Catch duplicates</b><small>Byte-identical copies like "file (1).pdf" go to a Duplicates folder. Nothing is deleted.</small></span></label>
+    <label class="toggle"><input type="checkbox" id="optDupes"><span><b>Catch duplicates</b><small>Byte-identical copies like "file (1).pdf" go to a Duplicates folder. You can move unwanted copies to Trash from the preview.</small></span></label>
     <label class="toggle"><input type="checkbox" id="optApps"><span><b>Include apps</b><small>Move .app bundles into "Apps &amp; installers".</small></span></label>
+
+    <label class="toggle"><input type="checkbox" id="optDateFolders"><span><b>Year/month subfolders</b><small>Use capture or document dates, falling back to the file date. Preview each full destination before sorting.</small></span></label>
+    <label class="toggle"><input type="checkbox" id="optWatch"><span><b>Watch for new downloads</b><small>Automatically sort new files after 2 minutes of stability while the app runs. Existing files stay put. Manual previews pause watching; Undo turns it off. Never automatically trashes files.</small></span></label>
 
     <h3 class="serif">Your folders</h3>
     <p class="hint">Your own folders, in your own words. A file goes here when its name, what's in the picture, or the text inside it matches a keyword. These win over the built-in folders.</p>
@@ -73,9 +85,10 @@
 
     <h3 class="serif">History</h3>
     <ul class="history" id="history"></ul>
-    <div class="settings-foot"><button class="primary" id="saveSettings">Save &amp; rescan</button></div>
+    <div class="settings-foot"><button class="primary" id="saveSettings">Save settings</button></div>
   </aside>
 
+  <script src="/static/size-filter.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

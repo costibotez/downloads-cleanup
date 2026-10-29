@@ -10,6 +10,7 @@ const BADGE_COLORS = {
 let S = { categories: [], config: {}, plan: null, history: [] };
 let overrides = {};   // id -> { category?, include? }
 let polling = null;
+let sorting = false;
 
 async function api(path, body) {
   const res = await fetch(path, {
@@ -31,7 +32,12 @@ function el(tag, cls, text) {
 
 const fmt = (n) => n.toLocaleString("en-US");
 const leaf = (cat) => cat.split("/").pop();
-const effective = (item) => ({ ...item, ...(overrides[item.id] || {}) });
+function sizeRange() {
+  const bounds = SizeFilter.range($("sizeMin").value, $("sizeMax").value, $("sizeUnit").value);
+  if (!$("sizeMin").validity.valid || !$("sizeMax").validity.valid) bounds.valid = false;
+  return bounds;
+}
+const effective = (item) => SizeFilter.selected(item, overrides[item.id] || {}, sizeRange());
 
 function groupOf(cat) {
   const hit = S.categories.find(([c]) => c === cat);
@@ -78,7 +84,7 @@ function renderFolders({ fromZero = false } = {}) {
   box.replaceChildren();
   const map = buckets();
   if (!map.size) {
-    box.append(el("div", "empty", S.plan ? "Nothing to sort here. Clean already!" : "Your folders appear here after a scan."));
+    box.append(el("div", "empty", S.plan ? "No included files match this view. Adjust the size filter or scan again." : "Your folders appear here after a scan."));
     return;
   }
   const order = categoryOrder();
@@ -136,8 +142,16 @@ function renderPile() {
 }
 
 function setPhaseUI() {
+  $("watchStatus").textContent = S.config.watch ? S.watchMessage || "Watching for new files" : (S.watchMessage || "").startsWith("Watch stopped:") ? S.watchMessage : "";
   const busy = ["listing", "analyzing", "duplicates"].includes(S.phase);
   const ready = S.phase === "ready" && S.plan;
+  $("sizeFilter").classList.toggle("hidden", !ready);
+  $("sizeFilter").disabled = sorting;
+  const bounds = sizeRange();
+  const matching = (S.plan || []).filter((i) => SizeFilter.matches(i, bounds));
+  $("sizeSummary").textContent = !bounds.valid
+    ? "Enter non-negative sizes with the minimum no larger than the maximum."
+    : `${fmt(matching.length)} of ${fmt((S.plan || []).length)} files match. Only included matching files will be sorted. MB = 1,000,000 bytes; GB = 1,000,000,000 bytes. Watch mode is unaffected.`;
   const lastUndoable = (S.history || []).find((h) => !h.undone);
   $("scanBtn").classList.toggle("hidden", busy || ready || S.phase === "done");
   $("sortBtn").classList.toggle("hidden", !ready);
@@ -184,7 +198,7 @@ function poll() {
   clearInterval(polling);
   polling = setInterval(async () => {
     const d = await refresh().catch(() => null);
-    if (d && !["listing", "analyzing", "duplicates"].includes(d.phase)) clearInterval(polling);
+    if (d && !["listing", "analyzing", "duplicates"].includes(d.phase)) { clearInterval(polling); polling = null; }
   }, 500);
 }
 
@@ -207,12 +221,16 @@ async function startScan() {
 function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
 async function sortNow() {
+  if (sorting || !sizeRange().valid) return;
   const items = S.plan.map((i) => {
     const e = effective(i);
     return { id: i.id, category: e.category, include: e.include };
   });
   const total = items.filter((i) => i.include).length;
+  if (!total) return;
   if (total > 400 && !confirm(`Move ${fmt(total)} files into folders inside ${S.config.folder}?\n\nYou can undo this afterwards.`)) return;
+  sorting = true;
+  $("sizeFilter").disabled = true;
   $("sortBtn").disabled = true;
   $("rescanBtn").classList.add("hidden");
   const request = api("/api/apply", { items });
@@ -257,10 +275,12 @@ async function sortNow() {
   try {
     [result] = await Promise.all([request, Promise.all(flights)]);
   } catch (e) {
+    sorting = false;
     $("hint").textContent = "Could not sort: " + e.message;
     await refresh();
     return;
   }
+  sorting = false;
   for (const [cat, card] of cards) card.querySelector(".card-head b").textContent = fmt(totals[cat] || 0);
   $("overlayCount").textContent = `${fmt(result.moved)} files.`;
   $("overlay").classList.remove("hidden");
@@ -283,7 +303,7 @@ function openFolder(cat) {
   $("drawerTitle").textContent = leaf(cat);
   $("drawerGroup").textContent = cat.includes("/") ? cat.split("/").slice(0, -1).join(" / ") : groupOf(cat);
   const options = categoryOrder();
-  const items = (S.plan || []).filter((i) => effective(i).category === cat);
+  const items = (S.plan || []).filter((i) => effective(i).category === cat && SizeFilter.matches(i, sizeRange()));
   for (const item of items.slice(0, 600)) {
     const e = effective(item);
     const li = el("li", e.include ? "" : "off");
@@ -298,12 +318,17 @@ function openFolder(cat) {
     });
     const names = el("div", "names");
     names.append(el("b", "", item.name));
+    names.append(el("small", "", SizeFilter.format(item)));
     if (item.newName !== item.name) {
       const s = el("small");
       s.append("→ ", el("span", "to", item.newName));
       names.append(s);
     }
     names.append(el("small", "", item.reason));
+    const suffix = ["Duplicates", "Empty files"].includes(e.category) ? "" : item.dateFolder;
+    const destination = el("small", "", "→ " + [e.category, suffix, item.newName].filter(Boolean).join("/"));
+    destination.title = destination.textContent;
+    names.append(destination);
     const sel = el("select");
     for (const c of options) {
       const o = el("option", "", c);
@@ -317,6 +342,24 @@ function openFolder(cat) {
       renderFolders(); renderPile(); setPhaseUI();
     });
     names.append(sel);
+    if (item.trashable) {
+      const trash = el("button", "soft trash-file", "Move to Trash");
+      trash.addEventListener("click", async () => {
+        if (!confirm(`Move “${item.name}” to macOS Trash?\n\nRecover it from Trash using Put Back. Undo last sort does not restore trashed files.`)) return;
+        trash.disabled = true;
+        try {
+          await api("/api/trash", { id: item.id });
+          delete overrides[item.id];
+          await refresh();
+          renderFolders(); renderPile(); openFolder(cat);
+          $("hint").textContent = `Moved “${item.name}” to Trash. Recover it in Finder → Trash → Put Back.`;
+        } catch (error) {
+          alert("Could not move to Trash: " + error.message);
+          trash.disabled = false;
+        }
+      });
+      names.append(trash);
+    }
     li.append(check, tile(item), names);
     list.append(li);
   }
@@ -345,13 +388,15 @@ function openSettings() {
   $("optRename").checked = c.rename;
   $("optDupes").checked = c.duplicates;
   $("optApps").checked = c.apps;
+  $("optDateFolders").checked = c.dateFolders;
+  $("optWatch").checked = c.watch;
   $("rules").replaceChildren(...(c.rules || []).map(ruleRow));
   const hist = $("history");
   hist.replaceChildren();
   if (!S.history.length) hist.append(el("li", "", "No sorts yet."));
   for (const h of S.history) {
     const li = el("li");
-    li.append(el("span", "", `${h.time.replace("T", " ")} · ${fmt(h.count)} files${h.undone ? " · undone" : ""}`));
+    li.append(el("span", "", `${h.time.replace("T", " ")} · ${fmt(h.count)} files${h.automatic ? " · automatic" : ""}${h.undone ? " · undone" : ""}`));
     if (!h.undone) {
       const b = el("button", "soft", "Undo");
       b.addEventListener("click", () => undo(h.id));
@@ -369,17 +414,18 @@ async function saveSettings() {
     return { folder: name.value.trim(), keywords: kws.value.split(",").map((k) => k.trim()).filter(Boolean) };
   }).filter((r) => r.folder && r.keywords.length);
   await api("/api/config", {
-    rename: $("optRename").checked, duplicates: $("optDupes").checked, apps: $("optApps").checked, rules,
+    rename: $("optRename").checked, duplicates: $("optDupes").checked, apps: $("optApps").checked, dateFolders: $("optDateFolders").checked, watch: $("optWatch").checked, rules,
   });
   $("settings").classList.add("hidden");
   await refresh();
-  startScan();
+  if (!S.config.watch) startScan();
+  else { renderFolders(); renderPile(); }
 }
 
 async function undo(id) {
   const target = id || (S.history.find((h) => !h.undone) || {}).id;
   if (!target) return;
-  if (!confirm("Put every file from that sort back where it was?")) return;
+  if (!confirm("Put every file from that sort back where it was? Watch mode will be turned off.")) return;
   const r = await api("/api/undo", { id: target });
   $("settings").classList.add("hidden");
   $("overlay").classList.add("hidden");
@@ -415,7 +461,7 @@ $("quitBtn").addEventListener("click", async () => {
   document.body.innerHTML = '<main><section class="hero"><h1>See you next <em>mess</em>.</h1><p class="lede">The sorter has stopped. You can close this tab.</p></section></main>';
 });
 $("addRule").addEventListener("click", () => $("rules").append(ruleRow()));
-$("saveSettings").addEventListener("click", saveSettings);
+$("saveSettings").addEventListener("click", () => saveSettings().catch((e) => alert(e.message)));
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { $("drawer").classList.add("hidden"); $("settings").classList.add("hidden"); }
 });
@@ -423,4 +469,22 @@ window.addEventListener("resize", () => { if (S.plan) renderPile(); });
 
 refresh().then((d) => {
   if (["listing", "analyzing", "duplicates"].includes(d.phase)) poll();
+});
+
+// Keep automatic sort history and watch status visible while the server runs.
+setInterval(() => {
+  if (S.config.watch && !polling && !sorting) {
+    refresh().then(() => { if (!S.plan) { renderFolders(); renderPile(); } }).catch(() => {});
+  }
+}, 2000);
+
+function updateSizeFilter() {
+  $("drawer").classList.add("hidden");
+  renderFolders(); renderPile(); setPhaseUI();
+}
+for (const id of ["sizeMin", "sizeMax", "sizeUnit"]) $(id).addEventListener("input", updateSizeFilter);
+$("sizeClear").addEventListener("click", () => {
+  $("sizeMin").value = "";
+  $("sizeMax").value = "";
+  updateSizeFilter();
 });
