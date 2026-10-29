@@ -11,6 +11,7 @@ let S = { categories: [], config: {}, plan: null, history: [] };
 let overrides = {};   // id -> { category?, include? }
 let polling = null;
 let sorting = false;
+let trashing = false;
 
 async function api(path, body) {
   const res = await fetch(path, {
@@ -304,7 +305,67 @@ function openFolder(cat) {
   $("drawerGroup").textContent = cat.includes("/") ? cat.split("/").slice(0, -1).join(" / ") : groupOf(cat);
   const options = categoryOrder();
   const items = (S.plan || []).filter((i) => effective(i).category === cat && SizeFilter.matches(i, sizeRange()));
-  for (const item of items.slice(0, 600)) {
+  const eligible = items.filter((item) => item.trashable);
+  const trashSelection = new Set();
+  const selectionChecks = [];
+  const toolbar = el("li", "bulk-trash");
+  const selectAllLabel = el("label");
+  const selectAll = el("input");
+  selectAll.type = "checkbox";
+  selectAllLabel.append(selectAll, " Select all for Trash");
+  const summary = el("span");
+  summary.setAttribute("aria-live", "polite");
+  const trashSelected = el("button", "soft trash-file", "Move selected to Trash");
+  function updateSelection() {
+    const selected = eligible.filter((item) => trashSelection.has(item.id));
+    const size = selected.reduce((total, item) => total + item.size, 0);
+    summary.textContent = `${fmt(selected.length)} selected · ${SizeFilter.format({ size })}`;
+    selectAll.checked = eligible.length > 0 && selected.length === eligible.length;
+    selectAll.indeterminate = selected.length > 0 && selected.length < eligible.length;
+    trashSelected.disabled = selected.length === 0;
+    for (const [id, check] of selectionChecks) check.checked = trashSelection.has(id);
+  }
+  selectAll.addEventListener("change", () => {
+    trashSelection.clear();
+    if (selectAll.checked) eligible.forEach((item) => trashSelection.add(item.id));
+    updateSelection();
+  });
+  trashSelected.addEventListener("click", async () => {
+    const selected = eligible.filter((item) => trashSelection.has(item.id));
+    if (!selected.length) return;
+    const total = selected.reduce((sum, item) => sum + item.size, 0);
+    if (!confirm(`Move ${fmt(selected.length)} files (${SizeFilter.format({ size: total })}) to macOS Trash?\n\nRecover them from Trash using Put Back. Undo last sort does not restore trashed files.`)) return;
+    // Prevent duplicate requests and changes to this selection while Finder works.
+    trashing = true;
+    const controls = [...document.querySelectorAll("button, input, select")].map((control) => [control, control.disabled]);
+    controls.forEach(([control]) => { control.disabled = true; });
+    trashSelected.textContent = "Moving to Trash…";
+    try {
+      const result = await api("/api/trash", { ids: selected.map((item) => item.id) });
+      result.trashedIds.forEach((id) => delete overrides[id]);
+      await refresh();
+      renderFolders(); renderPile(); openFolder(cat);
+      const message = `Moved ${fmt(result.trashed)} files to Trash.`;
+      $("hint").textContent = message + " Recover them in Finder → Trash → Put Back.";
+      if (result.errors.length) alert(message + ` ${fmt(result.errors.length)} files could not be moved:\n` + result.errors.slice(0, 10).map((e) => `${e.name}: ${e.error}`).join("\n"));
+    } catch (error) {
+      alert("Could not complete the Trash request: " + error.message);
+    } finally {
+      trashing = false;
+      controls.forEach(([control, disabled]) => { control.disabled = disabled; });
+      setPhaseUI();
+      trashSelected.textContent = "Move selected to Trash";
+      updateSelection();
+    }
+  });
+  if (eligible.length) {
+    toolbar.append(selectAllLabel, summary, trashSelected);
+    list.append(toolbar);
+    updateSelection();
+  }
+  // Show every eligible row so Select all never targets unshown files.
+  const shown = eligible.length ? items : items.slice(0, 600);
+  for (const item of shown) {
     const e = effective(item);
     const li = el("li", e.include ? "" : "off");
     const check = el("input");
@@ -339,10 +400,22 @@ function openFolder(cat) {
     sel.addEventListener("change", () => {
       overrides[item.id] = { ...overrides[item.id], category: sel.value };
       li.remove();
-      renderFolders(); renderPile(); setPhaseUI();
+      renderFolders(); renderPile(); setPhaseUI(); openFolder(cat);
     });
     names.append(sel);
     if (item.trashable) {
+      const label = el("label", "trash-choice");
+      const selectTrash = el("input");
+      selectTrash.type = "checkbox";
+      selectTrash.setAttribute("aria-label", `Select ${item.name} for Trash`);
+      selectTrash.addEventListener("change", () => {
+        if (selectTrash.checked) trashSelection.add(item.id);
+        else trashSelection.delete(item.id);
+        updateSelection();
+      });
+      selectionChecks.push([item.id, selectTrash]);
+      label.append(selectTrash, " Select for Trash");
+      names.append(label);
       const trash = el("button", "soft trash-file", "Move to Trash");
       trash.addEventListener("click", async () => {
         if (!confirm(`Move “${item.name}” to macOS Trash?\n\nRecover it from Trash using Put Back. Undo last sort does not restore trashed files.`)) return;
@@ -363,7 +436,7 @@ function openFolder(cat) {
     li.append(check, tile(item), names);
     list.append(li);
   }
-  if (items.length > 600) list.append(el("li", "", `…and ${fmt(items.length - 600)} more`));
+  if (!eligible.length && items.length > 600) list.append(el("li", "", `…and ${fmt(items.length - 600)} more`));
   $("settings").classList.add("hidden");
   $("drawer").classList.remove("hidden");
 }
@@ -463,6 +536,7 @@ $("quitBtn").addEventListener("click", async () => {
 $("addRule").addEventListener("click", () => $("rules").append(ruleRow()));
 $("saveSettings").addEventListener("click", () => saveSettings().catch((e) => alert(e.message)));
 document.addEventListener("keydown", (e) => {
+  if (trashing) return;
   if (e.key === "Escape") { $("drawer").classList.add("hidden"); $("settings").classList.add("hidden"); }
 });
 window.addEventListener("resize", () => { if (S.plan) renderPile(); });
@@ -473,7 +547,7 @@ refresh().then((d) => {
 
 // Keep automatic sort history and watch status visible while the server runs.
 setInterval(() => {
-  if (S.config.watch && !polling && !sorting) {
+  if (S.config.watch && !polling && !sorting && !trashing) {
     refresh().then(() => { if (!S.plan) { renderFolders(); renderPile(); } }).catch(() => {});
   }
 }, 2000);

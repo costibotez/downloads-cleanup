@@ -17,3 +17,9 @@ All three features are implemented. Validation: 18 Python tests passed, JavaScri
 4. Test boundaries, units, empty files, invalid ranges, unknown sizes, and filtering of sort selections. Update README usage instructions.
 
 File-size filtering is implemented. Eight JavaScript tests passed covering inclusive boundaries, decimal MB/GB, fractional sizes, empty files, invalid ranges, unknown bundle sizes, preserved checkbox choices and sort selection. All 18 Python regression tests, JavaScript syntax and diff checks also passed. No personal files were moved during validation.
+
+## Bulk Move to Trash
+
+Implemented separate Trash selection in eligible preview rows, Select all for Trash within the current size-filtered folder, and one confirmation with count and total size. Every eligible row is displayed so bulk selection does not silently target omitted rows. Sorting inclusion remains independent. Batch requests reuse each file's eligibility, path and snapshot checks, deduplicate IDs, and return successful IDs plus per-file failures. Failed files remain in the preview; successful ones are recoverable through Finder's Trash.
+
+Validation: 24 Python tests passed, including six new batch cases; all eight size-filter tests passed; a Node DOM harness checked bulk-selection controls, filtered select-all, count/size, cancellation, request contents and refresh. JavaScript syntax and diff checks passed. Finder operations were mocked; no personal files were moved. Native Finder interaction remains a manual check.

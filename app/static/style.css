@@ -136,3 +136,9 @@ h1 { font-weight: 800; }
 .size-filter input, .size-filter select { font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: white; }
 .size-filter .soft { padding: 8px 14px; }
 .size-filter .hint { margin-top: 8px; }
+
+.files .bulk-trash { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 0; }
+.bulk-trash label, .trash-choice { display: flex; align-items: center; gap: 6px; }
+.trash-choice { margin-top: 8px; }
+.bulk-trash span { font-size: 13px; color: var(--muted); }
+.soft:disabled { opacity: .5; cursor: default; }

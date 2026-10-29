@@ -287,6 +287,23 @@ def trash_file(item_id):
     return {"trashed": 1}
 
 
+def trash_files(ids):
+    """Best-effort batch: keep failed files in the preview and report each failure."""
+    if not isinstance(ids, list) or not ids or any(type(i) is not int for i in ids):
+        raise ValueError("Select one or more file IDs to move to Trash.")
+    if state["phase"] != "ready":
+        raise ValueError("Scan first before moving files to Trash.")
+    trashed_ids, errors = [], []
+    for item_id in dict.fromkeys(ids):
+        item = next((p for p in state["plan"] or [] if p["id"] == item_id), {})
+        try:
+            trash_file(item_id)
+            trashed_ids.append(item_id)
+        except (OSError, ValueError) as exc:
+            errors.append({"id": item_id, "name": item.get("name", str(item_id)), "error": str(exc)})
+    return {"trashed": len(trashed_ids), "trashedIds": trashed_ids, "errors": errors}
+
+
 def history():
     out = []
     for f in sorted(HISTORY.glob("*.json"), reverse=True)[:10]:
@@ -409,7 +426,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, {"ok": True})
         if path == "/api/trash":
             try:
-                return self.send(200, trash_file(body.get("id")))
+                return self.send(200, trash_files(body["ids"]) if "ids" in body else trash_file(body.get("id")))
             except (OSError, ValueError) as exc:
                 return self.send(400, {"error": str(exc)})
         if path == "/api/apply":

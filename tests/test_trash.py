@@ -64,6 +64,59 @@ class TrashTests(unittest.TestCase):
             server.trash_file(7)
         self.assertEqual(server.state['plan'], [self.item])
 
+    def second_item(self):
+        path = self.base / 'second.txt'
+        path.write_text('second')
+        item = dict(id=8, path=str(path), name=path.name, trashable=True,
+                    snapshot=server.file_snapshot(path.stat()))
+        server.state['plan'].append(item)
+        return item
+
+    def test_batch_success_deduplicates_and_preserves_unselected(self):
+        other = self.second_item()
+        result = server.trash_files([7, 7])
+        self.assertEqual(result, {'trashed': 1, 'trashedIds': [7], 'errors': []})
+        self.assertEqual(server.state['plan'], [other])
+        self.assertEqual(self.run.call_count, 1)
+
+    def test_batch_moves_multiple_files(self):
+        self.second_item()
+        result = server.trash_files([7, 8])
+        self.assertEqual(result['trashedIds'], [7, 8])
+        self.assertEqual(server.state['plan'], [])
+
+    def test_batch_continues_after_changed_file(self):
+        self.second_item()
+        self.src.write_text('changed')
+        result = server.trash_files([7, 8])
+        self.assertEqual(result['trashedIds'], [8])
+        self.assertEqual(result['errors'][0]['id'], 7)
+        self.assertEqual(server.state['plan'], [self.item])
+
+    def test_batch_reports_finder_failure(self):
+        other = self.second_item()
+        self.run.side_effect = [SimpleNamespace(returncode=0, stderr=''),
+                                SimpleNamespace(returncode=1, stderr='Not authorized')]
+        result = server.trash_files([7, 8])
+        self.assertEqual(result['trashed'], 1)
+        self.assertIn('Not authorized', result['errors'][0]['error'])
+        self.assertEqual(server.state['plan'], [other])
+
+    def test_batch_rejects_invalid_requests_before_mutation(self):
+        for ids in [[], None, '7', [7, '8'], [True], [[7]]]:
+            with self.assertRaises(ValueError):
+                server.trash_files(ids)
+        self.run.assert_not_called()
+
+    def test_batch_unknown_and_ineligible_ids_remain_untouched(self):
+        self.item['trashable'] = False
+        result = server.trash_files([7, 99])
+        self.assertEqual(result['trashed'], 0)
+        self.assertEqual(len(result['errors']), 2)
+        self.assertEqual(server.state['plan'], [self.item])
+        self.run.assert_not_called()
+
+
     def test_busy_scan_is_rejected(self):
         server.state['phase'] = 'listing'
         with self.assertRaises(ValueError):
