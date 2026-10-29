@@ -154,7 +154,7 @@ func analyzePDF(_ url: URL, _ out: inout [String: Any], _ thumb: URL) {
     for i in 0..<min(doc.pageCount, 2) {
         text += (doc.page(at: i)?.string ?? "") + "\n"
     }
-    out["text"] = String(text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression).prefix(2500))
+    out["text"] = String(text.replacingOccurrences(of: "[ \t]+", with: " ", options: .regularExpression).prefix(2500))
     if let title = doc.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String { out["title"] = title }
     if let page = doc.page(at: 0) {
         let img = page.thumbnail(of: CGSize(width: thumbSize, height: thumbSize), for: .mediaBox)
