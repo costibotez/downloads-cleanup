@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1544px; height: 500px; overflow: hidden; font-family: -apple-system, "SF Pro Display", "Inter", sans-serif;
+    background: radial-gradient(70% 120% at 85% 20%, #1d3a8a 0%, transparent 60%), linear-gradient(120deg, #0a1220 0%, #0e1a33 55%, #12245a 100%);
+    color: #fff; display: flex; align-items: center; padding: 0 92px; gap: 64px; position: relative; }
+  body::before { content: ""; position: absolute; inset: 0; opacity: .07;
+    background-image: linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px); background-size: 68px 68px; }
+  .copy { position: relative; flex: 1; }
+  h1 { font-size: 104px; font-weight: 800; letter-spacing: -.045em; line-height: 1; }
+  h1 i { font-style: normal; color: #4d7cff; }
+  .tag { margin-top: 26px; font-size: 34px; font-weight: 700; color: #dbe5ff; letter-spacing: -.01em; }
+  .sub { margin-top: 22px; font: 500 22px ui-monospace, "SF Mono", Menlo, monospace; color: #8ea6dc; letter-spacing: .02em; }
+  .card { position: relative; width: 560px; border-radius: 22px; padding: 30px 32px; background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.16); backdrop-filter: blur(6px); }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-radius: 12px;
+    background: rgba(255,255,255,.06); margin-bottom: 10px; font-size: 22px; font-weight: 600; }
+  .row span { display: flex; align-items: center; gap: 12px; }
+  .row b { font: 700 22px ui-monospace, Menlo, monospace; color: #7fa2ff; }
+  .dot { width: 14px; height: 14px; border-radius: 4px; }
+  .rename { margin-top: 18px; font: 500 19px ui-monospace, Menlo, monospace; color: #aebfe6; }
+  .rename em { font-style: normal; color: #ffd166; }
+</style></head><body>
+  <div class="copy">
+    <h1>Downloads Sorter<i>.</i></h1>
+    <p class="tag">Every file in its folder. Named by what's in it.</p>
+    <p class="sub">on-device vision · preview first · one-click undo</p>
+  </div>
+  <div class="card">
+    <div class="row"><span><i class="dot" style="background:#4d7cff"></i>Photos / Sport &amp; hobbies</span><b>12</b></div>
+    <div class="row"><span><i class="dot" style="background:#d0473f"></i>Documents / Invoices</span><b>49</b></div>
+    <div class="row"><span><i class="dot" style="background:#3f8f6b"></i>Documents / Bank statements</span><b>8</b></div>
+    <div class="row"><span><i class="dot" style="background:#6b7688"></i>Duplicates</span><b>31</b></div>
+    <p class="rename">IMG_5020.heic → <em>Guitar 2026-08-08.heic</em></p>
+  </div>
+</body></html>
