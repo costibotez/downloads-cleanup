@@ -79,7 +79,7 @@ Downloads Sorter does that on your Mac, with no cloud and no API key:
 ### 🧹 Catches the clutter
 - **Duplicates**: byte-identical copies (`file (1).pdf`) are found by hash and moved to a *Duplicates* folder. The copy with the cleanest name stays in place
 - **Empty files**: 0-byte failed downloads go to *Empty files*
-- **Move to Trash**: after scanning, open the Duplicates or Empty files preview and click **Move to Trash** beside a file, then confirm. Files go to macOS Trash, never permanent deletion. Restore them in Finder’s Trash with **Put Back**; **Undo last sort** only reverses sorting. macOS may ask for permission to control Finder. If denied, allow it under **System Settings → Privacy & Security → Automation** for the launcher or Terminal, then retry.
+- **Move to Trash**: after scanning, open the Duplicates or Empty files preview and click **Move to Trash** beside a file, then confirm. To remove several at once, tick the separate **Select for Trash** checkboxes or **Select all for Trash**, then click **Move selected to Trash**. The confirmation shows the count and total size. Bulk selection covers eligible files in that preview and respects the current size filter; sorting checkboxes remain independent. Files that fail stay in the preview and are reported, while successful moves are removed. Files go to macOS Trash, never permanent deletion. Restore them in Finder’s Trash with **Put Back**; **Undo last sort** only reverses sorting. macOS may ask for permission to control Finder. If denied, allow it under **System Settings → Privacy & Security → Automation** for the launcher or Terminal, then retry.
 - Skips partial downloads (`.crdownload`, `.part`, …), hidden files and anything modified in the last 2 minutes
 
 ### 🔒 Private by design
@@ -207,6 +207,7 @@ Run the regression checks (Node.js is needed only for the JavaScript checks, not
 ```bash
 python3 -m unittest discover -s tests -v
 node tests/test_size_filter.js
+node tests/test_bulk_trash.js
 node --check app/static/app.js
 node --check app/static/size-filter.js
 ```
