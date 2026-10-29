@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Downloads Sorter</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script>window.TOKEN = "__TOKEN__";</script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Downloads Sorter</div>
+    <button class="chip" id="folderChip" title="Choose another folder">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      <span id="folderName">Downloads</span>
+    </button>
+    <button class="ghost" id="settingsBtn">Settings</button>
+    <button class="ghost" id="quitBtn" title="Stop the sorter">Quit</button>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">private · runs on your Mac</p>
+      <h1 id="headline">Sort my <em>Downloads</em>.</h1>
+      <p class="lede" id="lede">Looks inside every photo, video and PDF, names it by what's in it and puts it where it belongs. You see the plan before anything moves, and one click puts it all back.</p>
+      <div class="actions">
+        <button class="primary" id="scanBtn">Look at my files</button>
+        <button class="primary hidden" id="sortBtn">Sort</button>
+        <button class="soft hidden" id="rescanBtn">Scan again</button>
+        <button class="soft hidden" id="undoBtn">Undo last sort</button>
+      </div>
+      <div class="progress hidden" id="progress"><div class="bar"><i id="bar"></i></div><span id="progressText"></span></div>
+      <p class="hint" id="hint"></p>
+    </section>
+
+    <section class="window">
+      <div class="chrome"><span></span><span></span><span></span><b id="windowTitle">Sort my Downloads</b></div>
+      <div class="stage">
+        <div class="folders" id="folders">
+          <div class="empty" id="emptyFolders">Your folders appear here after a scan.</div>
+        </div>
+        <div class="pile-wrap">
+          <div class="pile" id="pile"></div>
+          <span class="caption" id="pileCaption">a total mess</span>
+        </div>
+      </div>
+      <div class="overlay hidden" id="overlay"><div><b id="overlayCount"></b><br><em>Sorted</em> in seconds.</div></div>
+    </section>
+  </main>
+
+  <aside class="drawer hidden" id="drawer" aria-label="Folder contents">
+    <div class="drawer-head">
+      <div><p class="eyebrow" id="drawerGroup"></p><h2 id="drawerTitle"></h2></div>
+      <button class="ghost" id="drawerClose">Close</button>
+    </div>
+    <p class="hint">Untick a file to leave it where it is, or pick another folder for it.</p>
+    <ul class="files" id="drawerList"></ul>
+  </aside>
+
+  <aside class="drawer hidden" id="settings" aria-label="Settings">
+    <div class="drawer-head">
+      <div><p class="eyebrow">Settings</p><h2>How to sort</h2></div>
+      <button class="ghost" id="settingsClose">Close</button>
+    </div>
+    <label class="toggle"><input type="checkbox" id="optRename"><span><b>Rename by content</b><small>IMG_4821.jpg becomes "Selfie, coffee 2026-05-08.jpg". Only files with meaningless names are renamed.</small></span></label>
+    <label class="toggle"><input type="checkbox" id="optDupes"><span><b>Catch duplicates</b><small>Byte-identical copies like "file (1).pdf" go to a Duplicates folder. Nothing is deleted.</small></span></label>
+    <label class="toggle"><input type="checkbox" id="optApps"><span><b>Include apps</b><small>Move .app bundles into "Apps &amp; installers".</small></span></label>
+
+    <h3 class="serif">Your folders</h3>
+    <p class="hint">Your own folders, in your own words. A file goes here when its name, what's in the picture, or the text inside it matches a keyword. These win over the built-in folders.</p>
+    <div id="rules"></div>
+    <button class="soft" id="addRule">+ Add a folder</button>
+
+    <h3 class="serif">History</h3>
+    <ul class="history" id="history"></ul>
+    <div class="settings-foot"><button class="primary" id="saveSettings">Save &amp; rescan</button></div>
+  </aside>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
